@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anti-Tunnel Vision</title>
+    
+    <!-- Tailwind CSS pour le style -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome pour les icônes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tone.js pour la synthèse audio sans fichiers externes -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <!-- Injection du Manifest PWA dynamiquement en Data URI pour la compatibilité "Installable" -->
+    <link rel="manifest" id="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22Anti-Tunnel%20Vision%22%2C%22short_name%22%3A%22Anti-Tunnel%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230f172a%22%2C%22theme_color%22%3A%22%233b82f6%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzNiODJmNiIvPjxwYXRoIGQ9Ik01MCAzMHY0ME0zMCA1MGg0MCIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjgiLz48L3N2Zz4%3D%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
+
+    <style>
+        /* Personnalisation des animations et de la scrollbar */
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        .modal-enter { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4 sm:p-8">
+
+    <!-- Header -->
+    <header class="w-full max-w-2xl text-center mb-8">
+        <h1 class="text-3xl sm:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500 mb-2">
+            <i class="fa-solid fa-eye-slash mr-2 text-blue-400"></i>Anti-Tunnel Vision
+        </h1>
+        <p class="text-slate-400 text-sm sm:text-base">Ne perds plus la notion du temps. Garde le contrôle sur ton attention.</p>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+        
+        <!-- Colonne Gauche : Statut et Contrôles -->
+        <div class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 flex flex-col gap-6">
+            
+            <!-- Statut -->
+            <div class="flex items-center justify-between bg-slate-900 p-4 rounded-xl border border-slate-700">
+                <div class="flex items-center gap-3">
+                    <div id="statusIndicator" class="w-4 h-4 rounded-full bg-red-500"></div>
+                    <div>
+                        <div class="font-semibold" id="statusText">Inactif</div>
+                        <div class="text-xs text-slate-400" id="statusSubtext">Le tracker est arrêté.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration -->
+            <div class="space-y-4">
+                <h2 class="text-lg font-semibold border-b border-slate-700 pb-2"><i class="fa-solid fa-gear mr-2"></i>Paramètres</h2>
+                
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Délai Minimum (minutes)</label>
+                    <input type="number" id="minTime" value="20" min="1" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500 transition-colors">
+                </div>
+                
+                <div>
+                    <label class="block text-sm text-slate-400 mb-1">Délai Maximum (minutes)</label>
+                    <input type="number" id="maxTime" value="60" min="2" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-2 text-white focus:outline-none focus:border-blue-500 transition-colors">
+                </div>
+            </div>
+
+            <!-- Boutons d'action -->
+            <div class="grid grid-cols-2 gap-3 mt-auto">
+                <button id="btnStart" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-play"></i> Démarrer
+                </button>
+                <button id="btnStop" disabled class="bg-slate-700 text-slate-400 cursor-not-allowed font-semibold py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-stop"></i> Arrêter
+                </button>
+            </div>
+            
+            <button id="btnTest" class="w-full bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/50 py-2 rounded-lg transition-colors text-sm flex items-center justify-center gap-2">
+                <i class="fa-solid fa-bell"></i> Tester la notification (immédiat)
+            </button>
+        </div>
+
+        <!-- Colonne Droite : Historique -->
+        <div class="bg-slate-800 rounded-2xl p-6 shadow-xl border border-slate-700 flex flex-col h-[500px]">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-3 mb-4">
+                <h2 class="text-lg font-semibold"><i class="fa-solid fa-clock-rotate-left mr-2"></i>Historique</h2>
+                <button id="btnClear" class="text-xs text-red-400 hover:text-red-300 transition-colors"><i class="fa-solid fa-trash"></i> Vider</button>
+            </div>
+            
+            <div id="historyContainer" class="flex-1 overflow-y-auto space-y-3 pr-2">
+                <!-- Les logs seront injectés ici par JS -->
+                <div class="text-center text-slate-500 mt-10 italic">Aucun historique pour le moment.</div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modale de Notification (Tunnel Check) -->
+    <div id="tunnelModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex-col items-center justify-center p-4">
+        <div class="bg-slate-800 rounded-2xl shadow-2xl border border-slate-600 w-full max-w-md overflow-hidden modal-enter">
+            
+            <!-- Header Modal -->
+            <div class="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-center">
+                <i class="fa-solid fa-user-astronaut text-5xl text-white/80 mb-3 pulse-dot"></i>
+                <h2 class="text-2xl font-bold text-white">Alerte Tunnel !</h2>
+                <p class="text-blue-100 mt-1">Es-tu absorbé(e) par l'écran depuis trop longtemps ?</p>
+            </div>
+
+            <!-- Body Modal -->
+            <div id="modalStep1" class="p-6 flex flex-col gap-3">
+                <button onclick="handleResponse('Oui')" class="w-full bg-red-500/10 hover:bg-red-500/20 border border-red-500 text-red-400 font-semibold py-3 px-4 rounded-xl transition-all flex items-center justify-between group">
+                    <span>Oui, je suis dans un tunnel</span>
+                    <i class="fa-solid fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
+                </button>
+                <button onclick="handleResponse('Non')" class="w-full bg-green-500/10 hover:bg-green-500/20 border border-green-500 text-green-400 font-semibold py-3 px-4 rounded-xl transition-all flex items-center justify-between">
+                    <span>Non, je gère</span>
+                    <i class="fa-solid fa-thumbs-up"></i>
+                </button>
+                <button onclick="handleResponse('Stop')" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-3 px-4 rounded-xl transition-all flex items-center justify-between mt-2">
+                    <span>J'arrête maintenant (Désactiver)</span>
+                    <i class="fa-solid fa-power-off"></i>
+                </button>
+            </div>
+
+            <!-- Etape 2: Texte si "Oui" -->
+            <div id="modalStep2" class="p-6 hidden flex-col gap-4">
+                <label class="block text-sm font-medium text-slate-300">Que pourrais-tu faire d'autre à la place en ce moment ?</label>
+                <textarea id="alternativeTask" rows="3" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:outline-none focus:border-purple-500 transition-colors" placeholder="Ex: Boire un verre d'eau, lire un livre, m'étirer..."></textarea>
+                <div class="flex gap-3">
+                    <button onclick="cancelStep2()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 px-4 rounded-xl transition-colors">Annuler</button>
+                    <button onclick="saveYesResponse()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 px-4 rounded-xl transition-colors">Valider</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- 1. GESTION D'ÉTAT & HISTORIQUE ---
+        let isActive = false;
+        let history = JSON.parse(localStorage.getItem('antiTunnelHistory') || '[]');
+        
+        const UI = {
+            statusIndicator: document.getElementById('statusIndicator'),
+            statusText: document.getElementById('statusText'),
+            statusSubtext: document.getElementById('statusSubtext'),
+            minTime: document.getElementById('minTime'),
+            maxTime: document.getElementById('maxTime'),
+            btnStart: document.getElementById('btnStart'),
+            btnStop: document.getElementById('btnStop'),
+            historyContainer: document.getElementById('historyContainer'),
+            tunnelModal: document.getElementById('tunnelModal'),
+            modalStep1: document.getElementById('modalStep1'),
+            modalStep2: document.getElementById('modalStep2'),
+            alternativeTask: document.getElementById('alternativeTask')
+        };
+
+        function renderHistory() {
+            if (history.length === 0) {
+                UI.historyContainer.innerHTML = '<div class="text-center text-slate-500 mt-10 italic">Aucun historique pour le moment.</div>';
+                return;
+            }
+
+            UI.historyContainer.innerHTML = history.slice().reverse().map(item => {
+                let colorClass, icon;
+                if (item.type === 'Non') { colorClass = 'text-green-400'; icon = 'fa-thumbs-up'; }
+                else if (item.type === 'Oui') { colorClass = 'text-red-400'; icon = 'fa-brain'; }
+                else { colorClass = 'text-yellow-400'; icon = 'fa-power-off'; }
+
+                const timeStr = new Date(item.time).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'});
+                const dateStr = new Date(item.time).toLocaleDateString('fr-FR', {day: '2-digit', month:'2-digit'});
+
+                return `
+                    <div class="bg-slate-900 rounded-lg p-3 border border-slate-700 text-sm">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-slate-400 text-xs"><i class="fa-regular fa-clock mr-1"></i>${dateStr} - ${timeStr}</span>
+                            <span class="font-bold ${colorClass}"><i class="fa-solid ${icon} mr-1"></i>${item.type}</span>
+                        </div>
+                        ${item.text ? `<div class="text-slate-300 mt-2 bg-slate-800 p-2 rounded italic">"${item.text}"</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function addHistoryEntry(type, text = '') {
+            history.push({ time: Date.now(), type, text });
+            localStorage.setItem('antiTunnelHistory', JSON.stringify(history));
+            renderHistory();
+        }
+
+        document.getElementById('btnClear').addEventListener('click', () => {
+            if(confirm("Voulez-vous vraiment vider tout l'historique ?")) {
+                history = [];
+                localStorage.removeItem('antiTunnelHistory');
+                renderHistory();
+            }
+        });
+
+        // --- 2. AUDIO (TONE.JS) ---
+        let audioInitialized = false;
+        async function playCustomNotificationSound() {
+            try {
+                // Nécessaire pour débloquer l'audio context la première fois
+                if (!audioInitialized) {
+                    await Tone.start();
+                    audioInitialized = true;
+                }
+                
+                const synth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 1 }
+                }).toDestination();
+                
+                // Un carillon distinctif (Do, Mi, Sol aigüs)
+                const now = Tone.now();
+                synth.triggerAttackRelease("C6", "8n", now);
+                synth.triggerAttackRelease("E6", "8n", now + 0.15);
+                synth.triggerAttackRelease("G6", "4n", now + 0.3);
+            } catch (e) {
+                console.error("Erreur audio: ", e);
+            }
+        }
+
+        // --- 3. GESTION DES NOTIFICATIONS SYSTÈME ---
+        async function requestNotificationPermission() {
+            if (!("Notification" in window)) {
+                console.warn("Ce navigateur ne supporte pas les notifications desktop.");
+                return false;
+            }
+            if (Notification.permission === "granted") return true;
+            if (Notification.permission !== "denied") {
+                const permission = await Notification.requestPermission();
+                return permission === "granted";
+            }
+            return false;
+        }
+
+        function showSystemNotification() {
+            if ("Notification" in window && Notification.permission === "granted") {
+                const notif = new Notification("Anti-Tunnel Vision", {
+                    body: "Es-tu dans un tunnel d'ordinateur ? Clique ici pour répondre.",
+                    icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzNiODJmNiIvPjwvc3ZnPg==",
+                    requireInteraction: true // Reste à l'écran jusqu'à interaction
+                });
+                
+                notif.onclick = function() {
+                    window.focus(); // Ramène la fenêtre au premier plan
+                    notif.close();
+                };
+            }
+        }
+
+        let persistentStatusNotif = null;
+
+        function updatePersistentNotification(active) {
+            if (!("Notification" in window) || Notification.permission !== "granted") return;
+            
+            // Fermer l'ancienne notification si elle existe pour éviter les doublons
+            if (persistentStatusNotif) {
+                persistentStatusNotif.close();
+            }
+
+            if (active) {
+                persistentStatusNotif = new Notification("Suivi Anti-Tunnel : ACTIF", {
+                    body: "Le programme tourne en arrière-plan. Reste concentré(e) !",
+                    icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iIzIyYzU1ZSIvPjwvc3ZnPg==", // Icône verte
+                    tag: "anti-tunnel-status", // Le tag permet de remplacer la notification existante
+                    silent: true,
+                    requireInteraction: true // Maintient la notification visible selon le système d'exploitation
+                });
+            } else {
+                persistentStatusNotif = new Notification("Suivi Anti-Tunnel : INACTIF", {
+                    body: "Le suivi a été arrêté.",
+                    icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI2VmNDQ0NCIvPjwvc3ZnPg==", // Icône rouge
+                    tag: "anti-tunnel-status",
+                    silent: true
+                });
+                // Fermeture automatique du statut inactif après 4 secondes pour nettoyer l'écran
+                setTimeout(() => {
+                    if (persistentStatusNotif) persistentStatusNotif.close();
+                }, 4000);
+            }
+        }
+
+        // --- 4. WEB WORKER (POUR LE BACKGROUND TIMING) ---
+        /* 
+           Les navigateurs mettent en pause les setTimeout sur les onglets inactifs.
+           Utiliser un Web Worker contourne ce problème pour la plupart des navigateurs bureau.
+        */
+        const workerCode = `
+            let timer = null;
+            self.onmessage = function(e) {
+                if (e.data.command === 'start') {
+                    if(timer) clearTimeout(timer);
+                    timer = setTimeout(() => {
+                        self.postMessage('trigger');
+                    }, e.data.delay);
+                } else if (e.data.command === 'stop') {
+                    if(timer) clearTimeout(timer);
+                }
+            };
+        `;
+        const workerBlob = new Blob([workerCode], {type: 'application/javascript'});
+        const worker = new Worker(URL.createObjectURL(workerBlob));
+        
+        worker.onmessage = function(e) {
+            if (e.data === 'trigger') {
+                triggerTunnelCheck();
+            }
+        };
+
+        // --- 5. LOGIQUE PRINCIPALE DE L'APP ---
+        
+        function updateUIState() {
+            if (isActive) {
+                document.title = "🟢 Actif - Anti-Tunnel Vision";
+                UI.statusIndicator.classList.replace('bg-red-500', 'bg-green-500');
+                UI.statusIndicator.classList.add('pulse-dot');
+                UI.statusText.textContent = "Actif";
+                UI.statusSubtext.textContent = "Recherche d'un comportement en tunnel...";
+                
+                UI.btnStart.disabled = true;
+                UI.btnStart.classList.replace('bg-blue-600', 'bg-slate-700');
+                UI.btnStart.classList.replace('text-white', 'text-slate-400');
+                UI.btnStart.classList.remove('hover:bg-blue-500', 'shadow-lg', 'shadow-blue-500/30', 'cursor-pointer');
+                UI.btnStart.classList.add('cursor-not-allowed');
+
+                UI.btnStop.disabled = false;
+                UI.btnStop.classList.replace('bg-slate-700', 'bg-red-600');
+                UI.btnStop.classList.replace('text-slate-400', 'text-white');
+                UI.btnStop.classList.remove('cursor-not-allowed');
+                UI.btnStop.classList.add('hover:bg-red-500', 'shadow-lg', 'shadow-red-500/30');
+                
+                UI.minTime.disabled = true;
+                UI.maxTime.disabled = true;
+                UI.minTime.classList.add('opacity-50');
+                UI.maxTime.classList.add('opacity-50');
+            } else {
+                document.title = "🔴 Inactif - Anti-Tunnel Vision";
+                UI.statusIndicator.classList.replace('bg-green-500', 'bg-red-500');
+                UI.statusIndicator.classList.remove('pulse-dot');
+                UI.statusText.textContent = "Inactif";
+                UI.statusSubtext.textContent = "Le tracker est arrêté.";
+                
+                UI.btnStart.disabled = false;
+                UI.btnStart.classList.replace('bg-slate-700', 'bg-blue-600');
+                UI.btnStart.classList.replace('text-slate-400', 'text-white');
+                UI.btnStart.classList.remove('cursor-not-allowed');
+                UI.btnStart.classList.add('hover:bg-blue-500', 'shadow-lg', 'shadow-blue-500/30', 'cursor-pointer');
+
+                UI.btnStop.disabled = true;
+                UI.btnStop.classList.replace('bg-red-600', 'bg-slate-700');
+                UI.btnStop.classList.replace('text-white', 'text-slate-400');
+                UI.btnStop.classList.remove('hover:bg-red-500', 'shadow-lg', 'shadow-red-500/30');
+                UI.btnStop.classList.add('cursor-not-allowed');
+                
+                UI.minTime.disabled = false;
+                UI.maxTime.disabled = false;
+                UI.minTime.classList.remove('opacity-50');
+                UI.maxTime.classList.remove('opacity-50');
+            }
+        }
+
+        function scheduleNextCheck() {
+            if (!isActive) return;
+            
+            const minMin = parseInt(UI.minTime.value) || 20;
+            const maxMin = parseInt(UI.maxTime.value) || 60;
+            
+            // Si min est plus grand que max, on corrige
+            const min = Math.min(minMin, maxMin);
+            const max = Math.max(minMin, maxMin);
+            
+            // Calcul du délai aléatoire en minutes
+            const delayInMinutes = Math.floor(Math.random() * (max - min + 1)) + min;
+            const delayInMs = delayInMinutes * 60 * 1000;
+            
+            console.log(`Prochaine vérification dans ${delayInMinutes} minutes.`);
+            
+            // Envoi au Worker
+            worker.postMessage({ command: 'start', delay: delayInMs });
+        }
+
+        function triggerTunnelCheck() {
+            playCustomNotificationSound();
+            showSystemNotification();
+            openModal();
+        }
+
+        // --- 6. GESTION DE LA MODALE ET DES RÉPONSES ---
+
+        function openModal() {
+            UI.tunnelModal.classList.remove('hidden');
+            UI.tunnelModal.classList.add('flex');
+            UI.modalStep1.classList.remove('hidden');
+            UI.modalStep1.classList.add('flex');
+            UI.modalStep2.classList.add('hidden');
+            UI.modalStep2.classList.remove('flex');
+            UI.alternativeTask.value = '';
+        }
+
+        function closeModal() {
+            UI.tunnelModal.classList.add('hidden');
+            UI.tunnelModal.classList.remove('flex');
+        }
+
+        function handleResponse(type) {
+            if (type === 'Non') {
+                addHistoryEntry('Non');
+                closeModal();
+                scheduleNextCheck(); // Reprogramme
+            } else if (type === 'Oui') {
+                // Passe à l'étape 2
+                UI.modalStep1.classList.add('hidden');
+                UI.modalStep1.classList.remove('flex');
+                UI.modalStep2.classList.remove('hidden');
+                UI.modalStep2.classList.add('flex');
+                UI.alternativeTask.focus();
+            } else if (type === 'Stop') {
+                addHistoryEntry('Stop');
+                closeModal();
+                stopApp();
+            }
+        }
+
+        function cancelStep2() {
+            // Si on annule, on considère qu'on revient à l'étape 1
+            UI.modalStep2.classList.add('hidden');
+            UI.modalStep2.classList.remove('flex');
+            UI.modalStep1.classList.remove('hidden');
+            UI.modalStep1.classList.add('flex');
+        }
+
+        function saveYesResponse() {
+            const text = UI.alternativeTask.value.trim();
+            if (!text) {
+                // Petit retour visuel d'erreur
+                UI.alternativeTask.classList.replace('border-slate-600', 'border-red-500');
+                setTimeout(() => UI.alternativeTask.classList.replace('border-red-500', 'border-slate-600'), 1000);
+                return;
+            }
+            
+            addHistoryEntry('Oui', text);
+            closeModal();
+            scheduleNextCheck();
+        }
+
+        // --- 7. ÉVÉNEMENTS DES BOUTONS ---
+        
+        async function startApp() {
+            // Initialisation audio + notifs
+            await Tone.start();
+            audioInitialized = true;
+            await requestNotificationPermission();
+            
+            isActive = true;
+            updateUIState();
+            updatePersistentNotification(true);
+            scheduleNextCheck();
+        }
+
+        function stopApp() {
+            isActive = false;
+            worker.postMessage({ command: 'stop' });
+            updateUIState();
+            updatePersistentNotification(false);
+        }
+
+        UI.btnStart.addEventListener('click', startApp);
+        UI.btnStop.addEventListener('click', stopApp);
+        
+        // Bouton de test pour visualiser l'expérience sans attendre
+        document.getElementById('btnTest').addEventListener('click', async () => {
+            await Tone.start();
+            audioInitialized = true;
+            await requestNotificationPermission();
+            triggerTunnelCheck();
+        });
+
+        // Initialisation de la vue
+        renderHistory();
+
+    </script>
+</body>
+</html>
